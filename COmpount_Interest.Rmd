@@ -1,0 +1,162 @@
+---
+title: "Compound Interest Calculator Logic"
+output: html_document
+---
+
+
+
+```{r}
+print("made it here")
+library("jsonlite")
+library(ggplot2)
+library(calendar)
+library(RQuantLib)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Welcome everyone! Thanks for using my compound interest calculator!
+```{r}
+library(shiny)
+#api_key <- "X-D_RL6v5d_e6_WLw5iV"
+#data <- httr::GET("https://www.quandl.com/api/v3/datasets/EOD/AAPL.csv?api_key=", key=api_key)
+#mydata <- Quandl::Quandl("OPEC/ORB")
+#mydata <- Quandl::Quandl("NASDAQOMX/XQC")
+#summary(mydata)
+#str(mydata)
+my_api_key <- "MHQEZ4L62WITA3IM"
+inter <- "5min"
+sym <- "tSLa"
+func <- "TIME_SERIES_DAILY"
+#func <- "TIME_SERIES_MONTHLY"
+# intraday identifier: , "&interval="
+# interval identifier for intraday trading:  inter,
+stocks <- httr::GET(paste("https://www.alphavantage.co/query?","function=", func, "&symbol=", sym, "&apikey=", my_api_key, sep = ""))
+#if (httr::http_type(stocks) != "application/json") {
+    #stop("API did not return json", call. = FALSE)
+#}
+parser <- httr::content(stocks, "text")
+#parsed_text <- as.data.frame(parsed)
+
+get_prices_json <- jsonlite::fromJSON(parser, flatten = TRUE)
+prices <- get_prices_json$`Time Series (Daily)`
+#prices <- get_prices_json$`Monthly Time Series`
+df <- data.frame(matrix(unlist(prices), nrow=length(prices), byrow=T))
+names(df) <- c("open", "high", "low", "close", "volume")
+
+price_dates <- names(prices)
+# convert from factors to doubles
+df$date <- price_dates
+df$open <- as.character(df$open)
+df$open <- as.numeric(df$open)
+df$close <- as.character(df$close)
+df$close <- as.numeric(df$close)
+df$low <- as.character(df$low)
+df$low <- as.numeric(df$low)
+df$high <- as.character(df$high)
+df$high <- as.numeric(df$high)
+# get daily change
+df$daily_change <- df$close - df$open
+df$percent_change <- df$daily_change / df$open
+pct_sdev <- sd(df$percent_change)
+expected <- mean(df$percent_change)
+```
+
+```{r}
+      hist(df$percent_change, breaks = 40, col = 'deepskyblue3', border = 'black', xlab = "Percent Change", ylab = "Number of Ocurrences", main = "Daily Return Frequency")
+#ggplot2::ggplot(df, aes(df$percent_change)) + scale_fill_brewer(palette = "PuRd") + geom_histogram(aes(fill=class), 
+                  
+```
+
+```{r}
+my_api_key <- "MHQEZ4L62WITA3IM"
+
+symbol <- "alt"
+    suggestions <- httr::GET(paste("https://www.alphavantage.co/query?","function=SYMBOL_SEARCH", "&keywords=", symbol, "&apikey=", my_api_key, sep = ""))
+    
+suggestions
+suggestions_parser <- httr::content(suggestions, "text")
+suggestions_json <- jsonlite::fromJSON(suggestions_parser, flatten = TRUE)
+```
+
+
+```{r}
+start_date <- "2016-05-01"
+end_date <- "2019-06-15"
+#error testing
+period = "monthly"
+df <- try(quantmod::getSymbols(toupper("TSLA"), src = "yahoo", from=start_date, to=end_date, env = NULL, periodicity = period), silent = TRUE)
+
+if (class(df) == "try-error") {
+  print("failed")
+}
+# set names of columns
+names(df) <- c("open", "high", "low", "close", "volume", "adjusted")
+# make dataframe
+df_tester <- as.data.frame(df)
+df_tester <- tibble::rownames_to_column(df_tester, "date")
+df_tester$date <- as.Date(df_tester$date)
+df_tester <- na.omit(df_tester)
+df_tester
+```
+
+```{r}
+#get last trading day of each month
+dater <- "2019-08-01"
+calendar <- RQuantLib::getEndOfMonth(calendar = "UnitedStates/NYSE", dates = as.Date(dater, format = "%Y-%m-%d"))
+calendar
+```
+
+
+```{r}
+annual_market_returns <- as.data.frame(read.csv("annual_FF.CSV"))
+monthly_market_returns <- read.csv("monthly_FF.CSV")
+daily_market_returns <- as.data.frame(read.csv("daily_FF.CSV"))
+
+daily_market_returns$date <- as.Date(as.character(daily_market_returns$day), format="%Y%m%d")
+monthly_market_returns$date <- paste(as.character(monthly_market_returns$month), "01", sep = "")
+monthly_market_returns$date <- as.Date(monthly_market_returns$date, format="%Y%m%d")
+annual_market_returns$date <- as.Date(paste(as.character(annual_market_returns$annual), "0101", sep=""), format="%Y%m%d")
+```
+
+```{r}
+df2 <- merge(monthly_market_returns, df_tester, by = "date")
+df2$volume <- NULL
+df2$month <- NULL
+i = 2
+while (i < (nrow(df2) + 1)) {
+  df2$change[i] = ((df2$close[i] - df2$close[i - 1]) / df2$close[i - 1]) * 100
+  i = i + 1
+}
+df2 <- df2[-c(1), ]
+df2
+```
+
+
+```{r}
+#df2$real <- df2$change - df2$RF
+market_beta <- cov(df2$Mkt.RF, df2$change) / var(df2$Mkt.RF)
+smb_beta <- cov(df2$change, df2$SMB) / var(df2$SMB)
+hml_beta <- cov(df2$HML, df2$change) / var(df2$HML)
+```
+
+```{r}
+fit <- lm(df2$change ~ df2$Mkt.RF, df2)
+```
+
+
+```{r}
+capm <- ggplot2::ggplot(monthly_market_returns)
+```
+
+
+```{r}
+df <- quantmod::getSymbols(toupper("GE"), src = "yahoo", from="1920-01-01", to="1990-01-01", env = NULL, periodicity = "monthly")
+```
+
+```{r}
+test <- edgar::getSentiment(cik.no = "1070494", form.type = c("10-K"), filing.year = c(2017,2018))
+```
+
