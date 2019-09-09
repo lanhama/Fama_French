@@ -7,7 +7,6 @@ library(pracma)
 library(stringr)
 
 
-rsconnect::setAccountInfo(name='lanham-andrew', token='4EA6D324D5A561D5E2E428235900CC5F', secret='/be00N2aVtw0gjKe3/+UtfwjJVRyrK9RRlOXi7Gy')
 
 #read in Fama & French information before app processing starts
 annual_market_returns <- as.data.frame(read.csv("annual_FF.CSV"))
@@ -225,14 +224,5 @@ server <- function(input, output) {
 }
 
 shinyApp(ui = ui, server = server)
-
-
-
-# ticker_abb <- reactive ({
-#   suggestions <- httr::GET(paste("https://www.alphavantage.co/query?","function=SYMBOL_SEARCH", "&keywords=", input$ticker_sym, "&apikey=", my_api_key, sep = ""))
-#   suggestions_parser <- httr::content(suggestions, "text")
-#   suggestions_json <- jsonlite::fromJSON(suggestions_parser, flatten = TRUE)
-#   output$lister <- suggestions_json$bestMatches$`2. name`
-# })
 
 
